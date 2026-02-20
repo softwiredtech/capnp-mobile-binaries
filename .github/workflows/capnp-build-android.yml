@@ -41,11 +41,16 @@ jobs:
           for ABI in "${ABIS[@]}"; do
             mkdir -p build-${ABI}
             cmake -Bbuild-${ABI} -Hcapnp-source \
-              -DCMAKE_TOOLCHAIN_FILE=$PWD/android-ndk-${ANDROID_NDK_VERSION}/build/cmake/android.toolchain.cmake \
-              -DANDROID_ABI=$ABI \
-              -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL} \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_SHARED_LIBS=OFF
+                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+                -DANDROID_ABI=$ABI \
+                -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL} \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DKJ_USE_EPOLL=OFF \
+                -DKJ_USE_KQUEUE=OFF \
+                -DKJ_USE_ASYNC_UNIX=OFF \
+                -DBUILD_TESTING=OFF \
+                -DENABLE_EXAMPLES=OFF
             cmake --build build-${ABI} -j$(nproc)
           done
 

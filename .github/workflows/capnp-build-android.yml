@@ -1,0 +1,58 @@
+name: Build Cap'n Proto for Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-android-capnp:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_NDK_VERSION: r25c
+      ANDROID_API_LEVEL: 21
+      CAPNP_VERSION: 1.3.0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build wget unzip build-essential
+
+      - name: Download Android NDK
+        run: |
+          wget https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          echo "${PWD}/android-ndk-${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
+          rm android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+
+      - name: Download Cap'n Proto
+        run: |
+          wget https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz
+          tar -xzf capnproto-c++-${CAPNP_VERSION}.tar.gz
+          mv capnproto-c++-${CAPNP_VERSION} capnp-source
+
+      - name: Build Cap'n Proto for Android ABIs
+        run: |
+          ABIS=("armeabi-v7a" "arm64-v8a" "x86" "x86_64")
+          for ABI in "${ABIS[@]}"; do
+            mkdir -p build-${ABI}
+            cmake -Bbuild-${ABI} -Hcapnp-source \
+              -DCMAKE_TOOLCHAIN_FILE=$PWD/android-ndk-${ANDROID_NDK_VERSION}/build/cmake/android.toolchain.cmake \
+              -DANDROID_ABI=$ABI \
+              -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF
+            cmake --build build-${ABI} -j$(nproc)
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: capnp-android
+          path: |
+            build-*/libcapnp.a
+            capnp-source/c++/capnp/*.h

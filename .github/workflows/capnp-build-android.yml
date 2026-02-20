@@ -100,5 +100,8 @@ jobs:
         with:
             name: capnp-android-${{ matrix.abi }}
             path: |
+                build-${{ matrix.abi }}/src/capnp/libcapnpc.a
                 build-${{ matrix.abi }}/src/capnp/libcapnp.a
-                capnp-source/c++/capnp/**/*.h
+                build-${{ matrix.abi }}/src/kj/libkj.a
+                build-${{ matrix.abi }}/include/capnp/
+                build-${{ matrix.abi }}/include/kj/

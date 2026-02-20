@@ -88,6 +88,10 @@ jobs:
         run: |
           cmake --build build-${{ matrix.abi }} -j$(nproc)
 
+      - name: Debug build output
+        run: |
+          find build-${{ matrix.abi }} -name "libcapnp.a"
+
       # ---------------------------
       # Upload ABI-specific artifacts
       # ---------------------------

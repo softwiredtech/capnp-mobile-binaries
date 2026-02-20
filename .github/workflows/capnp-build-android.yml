@@ -5,13 +5,19 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  ANDROID_NDK_VERSION: r27d
+  ANDROID_API_LEVEL: 23
+  CAPNP_VERSION: 1.3.0
+
 jobs:
   build-android-capnp:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_NDK_VERSION: r27d
-      ANDROID_API_LEVEL: 23
-      CAPNP_VERSION: 1.3.0
+
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
 
     steps:
       - name: Checkout repository
@@ -22,42 +28,73 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build wget unzip build-essential
 
+      # ---------------------------
+      # Cache Android NDK
+      # ---------------------------
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: android-ndk-${{ env.ANDROID_NDK_VERSION }}
+          key: ndk-${{ env.ANDROID_NDK_VERSION }}
+
       - name: Download Android NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
-            wget https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
-            unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip
-            echo "ANDROID_NDK=${PWD}/android-ndk-${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
-            rm android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          wget https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          rm android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+
+      - name: Set ANDROID_NDK env
+        run: |
+          echo "ANDROID_NDK=${PWD}/android-ndk-${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
+
+      # ---------------------------
+      # Cache Cap'n Proto source
+      # ---------------------------
+      - name: Cache Cap'n Proto source
+        id: cache-capnp
+        uses: actions/cache@v4
+        with:
+          path: capnp-source
+          key: capnp-${{ env.CAPNP_VERSION }}
 
       - name: Download Cap'n Proto
+        if: steps.cache-capnp.outputs.cache-hit != 'true'
         run: |
           wget https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz
           tar -xzf capnproto-c++-${CAPNP_VERSION}.tar.gz
           mv capnproto-c++-${CAPNP_VERSION} capnp-source
+          rm capnproto-c++-${CAPNP_VERSION}.tar.gz
 
-      - name: Build Cap'n Proto for Android ABIs
+      # ---------------------------
+      # Build per ABI (matrix)
+      # ---------------------------
+      - name: Configure CMake (${{ matrix.abi }})
         run: |
-          ABIS=("armeabi-v7a" "arm64-v8a" "x86" "x86_64")
-          for ABI in "${ABIS[@]}"; do
-            mkdir -p build-${ABI}
-            cmake -Bbuild-${ABI} -Hcapnp-source \
-                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-                -DANDROID_ABI=$ABI \
-                -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL} \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DKJ_USE_EPOLL=OFF \
-                -DKJ_USE_KQUEUE=OFF \
-                -DKJ_USE_ASYNC_UNIX=OFF \
-                -DBUILD_TESTING=OFF \
-                -DENABLE_EXAMPLES=OFF
-            cmake --build build-${ABI} -j$(nproc)
-          done
+          cmake -Bbuild-${{ matrix.abi }} -Hcapnp-source \
+              -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+              -DANDROID_ABI=${{ matrix.abi }} \
+              -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DKJ_USE_EPOLL=OFF \
+              -DKJ_USE_KQUEUE=OFF \
+              -DKJ_USE_ASYNC_UNIX=OFF \
+              -DBUILD_TESTING=OFF \
+              -DENABLE_EXAMPLES=OFF
 
-      - name: Upload artifacts
+      - name: Build (${{ matrix.abi }})
+        run: |
+          cmake --build build-${{ matrix.abi }} -j$(nproc)
+
+      # ---------------------------
+      # Upload ABI-specific artifacts
+      # ---------------------------
+      - name: Upload artifacts (${{ matrix.abi }})
         uses: actions/upload-artifact@v4
         with:
-          name: capnp-android
+          name: capnp-android-${{ matrix.abi }}
           path: |
-            build-*/libcapnp.a
+            build-${{ matrix.abi }}/libcapnp.a
             capnp-source/c++/capnp/*.h

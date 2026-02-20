@@ -103,5 +103,7 @@ jobs:
                 build-${{ matrix.abi }}/src/capnp/libcapnpc.a
                 build-${{ matrix.abi }}/src/capnp/libcapnp.a
                 build-${{ matrix.abi }}/src/kj/libkj.a
-                build-${{ matrix.abi }}/include/capnp/
-                build-${{ matrix.abi }}/include/kj/
+                capnp-source/src/capnp/**/*.h
+                capnp-source/src/capnp/**/*.hpp
+                capnp-source/src/kj/**/*.h
+                capnp-source/src/kj/**/*.hpp

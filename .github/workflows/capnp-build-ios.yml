@@ -47,6 +47,12 @@ jobs:
           mv capnproto-c++-${CAPNP_VERSION} capnp-source
           rm capnp.tar.gz
 
+      - name: Patch source for iOS cross-compilation
+        run: |
+          cd capnp-source
+          # Remove MACOSX_BUNDLE property that causes install() errors on iOS
+          sed -i '' 's/MACOSX_BUNDLE TRUE//g' src/capnp/CMakeLists.txt
+
       - name: Configure & Build Cap'n Proto
         run: |
           SDK_PATH=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)
@@ -66,7 +72,6 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DCMAKE_C_COMPILER_WORKS=TRUE \
             -DCMAKE_CXX_COMPILER_WORKS=TRUE \
-            -DCMAKE_SKIP_INSTALL_RULES=ON \
             ..
 
           cmake --build . --target capnp capnpc kj -- -j$(sysctl -n hw.logicalcpu)

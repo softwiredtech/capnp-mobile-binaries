@@ -104,14 +104,6 @@ jobs:
         with:
           path: artifacts
 
-      - name: Download Cap'n Proto headers
-        run: |
-          curl -L https://capnproto.org/capnproto-c++-1.3.0.tar.gz -o capnp.tar.gz
-          tar -xzf capnp.tar.gz
-          mkdir -p headers/capnp headers/kj
-          find capnproto-c++-1.3.0/src/capnp -name "*.h" -exec cp {} headers/capnp/ \;
-          find capnproto-c++-1.3.0/src/kj -name "*.h" -exec cp {} headers/kj/ \;
-
       - name: Create XCFrameworks
         run: |
           # Create fat simulator libraries (arm64 + x86_64)
@@ -129,9 +121,7 @@ jobs:
             name="${lib%.a}"
             xcodebuild -create-xcframework \
               -library artifacts/capnp-ios-device-arm64/${lib} \
-              -headers headers \
               -library simulator-fat/${lib} \
-              -headers headers \
               -output ${name}.xcframework
           done
 

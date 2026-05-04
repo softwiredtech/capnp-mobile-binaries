@@ -68,7 +68,7 @@ jobs:
             -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             ..
 
-          cmake --build . -- -j$(sysctl -n hw.logicalcpu)
+          cmake --build . --target capnp capnpc kj -- -j$(sysctl -n hw.logicalcpu)
 
       - name: Collect output
         run: |

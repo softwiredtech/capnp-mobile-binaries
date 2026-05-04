@@ -50,8 +50,9 @@ jobs:
       - name: Patch source for iOS cross-compilation
         run: |
           cd capnp-source
-          # Remove MACOSX_BUNDLE property that causes install() errors on iOS
-          sed -i '' 's/MACOSX_BUNDLE TRUE//g' src/capnp/CMakeLists.txt
+          # Force-disable MACOSX_BUNDLE which iOS enables by default on all executables,
+          # causing install() to fail without BUNDLE DESTINATION
+          sed -i '' '1s/^/cmake_policy(SET CMP0006 OLD)\nset(CMAKE_MACOSX_BUNDLE OFF CACHE BOOL "" FORCE)\n/' CMakeLists.txt
 
       - name: Configure & Build Cap'n Proto
         run: |

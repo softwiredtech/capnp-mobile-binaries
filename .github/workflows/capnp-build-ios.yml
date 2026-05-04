@@ -3,6 +3,7 @@ name: Build Cap'n Proto for iOS
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 env:

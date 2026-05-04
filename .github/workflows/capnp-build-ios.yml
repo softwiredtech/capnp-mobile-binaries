@@ -50,9 +50,13 @@ jobs:
       - name: Patch source for iOS cross-compilation
         run: |
           cd capnp-source
-          # Force-disable MACOSX_BUNDLE which iOS enables by default on all executables,
-          # causing install() to fail without BUNDLE DESTINATION
-          sed -i '' '1s/^/cmake_policy(SET CMP0006 OLD)\nset(CMAKE_MACOSX_BUNDLE OFF CACHE BOOL "" FORCE)\n/' CMakeLists.txt
+          # On iOS, CMake auto-sets MACOSX_BUNDLE on executables, causing install() to
+          # fail without BUNDLE DESTINATION. Fix by adding BUNDLE DESTINATION to all
+          # install(TARGETS ...) calls in capnp, and disabling the bundle property.
+          sed -i '' 's/set(CMAKE_MACOSX_BUNDLE TRUE)//g' CMakeLists.txt
+          sed -i '' '1s/^/set(CMAKE_MACOSX_BUNDLE FALSE)\n/' CMakeLists.txt
+          # Also patch any existing MACOSX_BUNDLE on add_executable
+          sed -i '' 's/ MACOSX_BUNDLE//g' src/capnp/CMakeLists.txt
 
       - name: Configure & Build Cap'n Proto
         run: |

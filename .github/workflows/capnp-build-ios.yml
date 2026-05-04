@@ -1,0 +1,137 @@
+name: Build Cap'n Proto for iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CAPNP_VERSION: 1.3.0
+  IOS_DEPLOYMENT_TARGET: "13.0"
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: iphoneos
+            arch: arm64
+            label: device-arm64
+          - sdk: iphonesimulator
+            arch: arm64
+            label: simulator-arm64
+          - sdk: iphonesimulator
+            arch: x86_64
+            label: simulator-x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Cache Cap'n Proto source
+        id: cache-capnp
+        uses: actions/cache@v4
+        with:
+          path: capnp-source
+          key: capnp-ios-${{ env.CAPNP_VERSION }}
+
+      - name: Download Cap'n Proto
+        if: steps.cache-capnp.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz -o capnp.tar.gz
+          tar -xzf capnp.tar.gz
+          mv capnproto-c++-${CAPNP_VERSION} capnp-source
+          rm capnp.tar.gz
+
+      - name: Configure & Build Cap'n Proto
+        run: |
+          SDK_PATH=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)
+
+          cd capnp-source
+          mkdir -p build-${{ matrix.label }}
+          cd build-${{ matrix.label }}
+
+          cmake \
+            -G "Unix Makefiles" \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=${SDK_PATH} \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${IOS_DEPLOYMENT_TARGET} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+            ..
+
+          cmake --build . -- -j$(sysctl -n hw.logicalcpu)
+
+      - name: Collect output
+        run: |
+          mkdir -p output/${{ matrix.label }}
+          cp capnp-source/build-${{ matrix.label }}/src/capnp/libcapnp.a output/${{ matrix.label }}/
+          cp capnp-source/build-${{ matrix.label }}/src/capnp/libcapnpc.a output/${{ matrix.label }}/
+          cp capnp-source/build-${{ matrix.label }}/src/kj/libkj.a output/${{ matrix.label }}/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: capnp-ios-${{ matrix.label }}
+          path: output/${{ matrix.label }}
+
+  xcframework:
+    runs-on: macos-latest
+    needs: build
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Download Cap'n Proto headers
+        run: |
+          curl -L https://capnproto.org/capnproto-c++-1.3.0.tar.gz -o capnp.tar.gz
+          tar -xzf capnp.tar.gz
+          mkdir -p headers/capnp headers/kj
+          find capnproto-c++-1.3.0/src/capnp -name "*.h" -exec cp {} headers/capnp/ \;
+          find capnproto-c++-1.3.0/src/kj -name "*.h" -exec cp {} headers/kj/ \;
+
+      - name: Create XCFrameworks
+        run: |
+          # Create fat simulator libraries (arm64 + x86_64)
+          mkdir -p simulator-fat
+
+          for lib in libcapnp.a libcapnpc.a libkj.a; do
+            lipo -create \
+              artifacts/capnp-ios-simulator-arm64/${lib} \
+              artifacts/capnp-ios-simulator-x86_64/${lib} \
+              -output simulator-fat/${lib}
+          done
+
+          # Create XCFramework for each library
+          for lib in libcapnp.a libcapnpc.a libkj.a; do
+            name="${lib%.a}"
+            xcodebuild -create-xcframework \
+              -library artifacts/capnp-ios-device-arm64/${lib} \
+              -headers headers \
+              -library simulator-fat/${lib} \
+              -headers headers \
+              -output ${name}.xcframework
+          done
+
+      - name: Zip XCFrameworks
+        run: |
+          zip -r capnp-ios-xcframeworks.zip \
+            libcapnp.xcframework \
+            libcapnpc.xcframework \
+            libkj.xcframework
+
+      - name: Upload XCFramework
+        uses: actions/upload-artifact@v4
+        with:
+          name: capnp-ios-xcframeworks
+          path: capnp-ios-xcframeworks.zip

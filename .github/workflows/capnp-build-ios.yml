@@ -66,6 +66,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DCMAKE_C_COMPILER_WORKS=TRUE \
             -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+            -DCMAKE_SKIP_INSTALL_RULES=ON \
             ..
 
           cmake --build . --target capnp capnpc kj -- -j$(sysctl -n hw.logicalcpu)
